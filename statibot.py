@@ -15,8 +15,8 @@ from selenium.webdriver.support import expected_conditions as EC
 
 WEBDRIVER = 'Firefox'  # 'Firefox' 'Chrome' 'PhantomJS'
 ACCOUNTS_FILE = 'accounts.txt'
-MAX_LIKES = 1000
-MAX_LIKED_SCREENS = 3
+MAX_LIKES = 200
+MAX_LIKED_SCREENS = 2
 
 
 def get_webdriver():
@@ -158,41 +158,31 @@ e.g. username password hashtag1 1000 [hashtag2 500] ...' \
     return accounts
 
 
-def delay():
-    """Generate random sleep time to make navigating and clicking more human."""
-    return random.uniform(1.0, 1.5)
+def process_account(account):
+    """For each hashtag in account, login, search for hashtag, select the exact
+    match, like unliked pics up to the likes count for each hashtag, then
+    logout."""
 
-
-def process_account(driver, wait, account):
-    """For account, search for each hashtag, select the exact match, and like
-    unliked pics up to the likes count for each hashtag."""
-    username_password = account[0]
     hashtags_likes = account[1:]
 
-    # Click login button.
-    login_button = wait.until(lambda s: s.find_element(
-        By.XPATH, '//*[@id="content"]/header[1]/div/a[2]'))
-    time.sleep(delay())
-    login_button.click()
-
-    # Enter username.
-    username = wait.until(lambda s: s.find_element(
-        By.XPATH, '//*[@id="id_username"]'))
-    time.sleep(delay())
-    username.send_keys(username_password[0])
-
-    # Enter password and login.
-    password = wait.until(lambda s: s.find_element(
-        By.XPATH, '//*[@id="id_password"]'))
-    time.sleep(delay())
-    password.send_keys(username_password[1])
-    password.send_keys(Keys.RETURN)
-
-    # Find hashtag search field.
-    search = wait.until(lambda s: s.find_elements(
-        By.XPATH, '//*[@id="getSearch"]'))[1]
-
     for hashtag, likes in hashtags_likes:
+        print '  Hashtag "%s" %d...' % (hashtag, likes)
+
+        # Safest to start a new session for each hashtag.
+        time.sleep(delay())
+        try:
+            driver, wait = login(account)
+        except:
+            return False
+
+        # Find hashtag search field.
+        try:
+            search = wait.until(lambda s: s.find_elements(
+                By.XPATH, '//*[@id="getSearch"]'))[1]
+        except:
+            print '    Could not find search field.' % hashtag
+            return False
+
         # Search for hashtag.
         time.sleep(delay())
         search.clear()
@@ -204,13 +194,12 @@ def process_account(driver, wait, account):
             tag = wait.until(lambda s: s.find_element(
                 By.XPATH, '//*[@id="resultatSearchTag"]/ul/li[1]/a'))
         except:
-            print '  Hashtag "%s" - Not Found.' % hashtag
+            print '    Hashtag "%s" - Not Found.' % hashtag
+            if not logout(driver, wait):
+                return False
             continue
-
         time.sleep(delay())
         tag.click()
-
-        print '  Hashtag "%s" %d...' % (hashtag, likes)
 
         # Like unliked pics for this hashtag, extending the screen as required.
         screen = 0
@@ -218,7 +207,6 @@ def process_account(driver, wait, account):
         count = 0
         failed = 0
         end_of_page = False
-        shortwait = WebDriverWait(driver, 5)
         while count < likes and count < MAX_LIKES:
             screen += 1
 
@@ -286,20 +274,110 @@ def process_account(driver, wait, account):
 
         print '  Hashtag "%s" - Liked %d/%d.' % (hashtag, count, likes)
         if failed:
-            print '    Encountered Statigram click errors.'
+            print '  Encountered Statigram click errors.'
         elif screen_tries >= MAX_LIKED_SCREENS:
-            print '    Reached already liked screens.'
+            print '  Reached already liked screens.'
         elif count >= likes:
-            print '    Reached set likes count.'
+            print '  Reached set likes count.'
         elif count >= MAX_LIKES:
-            print '    Reached maximum allowed likes.'
+            print '  Reached maximum allowed likes.'
         else:
-            print '    Reached end of page.'
+            print '  Reached end of page.'
 
-        # Scroll back to top to be ready to use search field again.
-        driver.execute_script("window.scrollTo(0, 0);")
+        if not logout(driver, wait):
+            return False
 
     return True
+
+
+def login(account):
+    """Login to Instagram account."""
+    username_password = account[0]
+
+    driver = get_webdriver()
+    if not driver:
+        return False
+
+    wait = WebDriverWait(driver, 10)
+
+    # Click login button.
+    try:
+        login_button = wait.until(lambda s: s.find_element(
+            By.XPATH, '//*[@id="content"]/header[1]/div/a[2]'))
+    except:
+        print '    Could not find login button.'
+        return False
+    time.sleep(delay())
+    login_button.click()
+
+    # Enter username.
+    try:
+        username = wait.until(lambda s: s.find_element(
+            By.XPATH, '//*[@id="id_username"]'))
+    except:
+        print '    Could not find username field.'
+        return False
+    time.sleep(delay())
+    username.send_keys(username_password[0])
+
+    # Enter password and login.
+    try:
+        password = wait.until(lambda s: s.find_element(
+            By.XPATH, '//*[@id="id_password"]'))
+    except:
+        print '    Could not find password field.'
+        return False
+    time.sleep(delay())
+    password.send_keys(username_password[1])
+    password.send_keys(Keys.RETURN)
+
+    # Check for login button reappearing, meaning login failed.
+    try:
+        login_button_check = wait.until(lambda s: s.find_element(
+            By.XPATH, '//*[@id="content"]/header[1]/div/a[2]'))
+    except:
+        pass
+    else:
+        print '    Could not login.'
+        return False
+
+    return (driver, wait)
+
+
+def logout(driver, wait):
+    """Logout of Instagram account."""
+
+    # Scroll to top of screen.
+    driver.execute_script("window.scrollTo(0, 0);")
+
+    try:
+        logout_button = wait.until(lambda s: s.find_element(By.ID, 'avatar'))
+    except:
+        print '    Could not find logout button.'
+        return False
+    time.sleep(delay())
+    logout_button.click()
+
+    try:
+        logout_option = wait.until(lambda s: s.find_element(
+            By.XPATH, '//*[@id="ui-tooltip-0-content"]/a[@href="/?action=logout"]'))
+    except:
+        print '    Could not find logout option.'
+        return False
+    time.sleep(delay())
+    logout_option.click()
+
+    # Close browser window.
+    time.sleep(delay())
+    driver.delete_all_cookies()
+    driver.quit()
+
+    return True
+
+
+def delay():
+    """Generate random sleep time to make navigating and clicking more human."""
+    return random.uniform(0.75, 1.75)
 
 
 def main():
@@ -309,36 +387,13 @@ def main():
     except:
         return
 
-    driver = get_webdriver()
-    if not driver:
-        return
-
-    wait = WebDriverWait(driver, 10)
-
     for account in accounts:
         print '\nAccount "%s"...' % account[0][0]
-        processed = process_account(driver, wait, account)
+        processed = process_account(account)
         if processed:
             print 'Account "%s" OK.' % account[0][0]
         else:
             print 'Account "%s" Error.' % account[0][0]
-
-    #return  # To stay logged in and leave browser open.
-
-    # Scroll back to top and logout.
-    driver.execute_script("window.scrollTo(0, 0);")
-    logout_button = wait.until(lambda s: s.find_element(By.ID, 'avatar'))
-    time.sleep(delay())
-    logout_button.click()
-    logout_option = wait.until(lambda s: s.find_element(
-        By.XPATH, '//*[@id="ui-tooltip-0-content"]/a[@href="/?action=logout"]'))
-    time.sleep(delay())
-    logout_option.click()
-
-    # Close browser window.
-    time.sleep(delay())
-    driver.delete_all_cookies()
-    driver.quit()
 
 
 if __name__ == '__main__':
