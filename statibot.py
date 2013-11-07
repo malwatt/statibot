@@ -200,9 +200,13 @@ def process_account(account):
         time.sleep(delay())
         tag.click()
 
+        # Set pause points at a random click count interval for this hashtag.
+        pause = random.randint(10, 25)
+
         # Like unliked pics for this hashtag, extending the screen as required.
         screen = 0
         screen_tries = 0
+        clicks = 0
         count = 0
         failed = 0
         end_of_page = False
@@ -231,6 +235,11 @@ def process_account(account):
                 for unliked in unlikeds:
                     time.sleep(delay() * 10)
                     unliked.click()
+                    clicks += 1
+
+                    # Random pause.
+                    if not clicks % pause:
+                        time.sleep(delay() * 100)
 
                 # Get unliked pics now on screen.
                 try:
@@ -251,8 +260,6 @@ def process_account(account):
                 # Firefox will scroll down and use this to extend page.
                 more = wait.until(lambda s: s.find_element(
                     By.XPATH, '//*[@id="conteneur-more"]/a'))
-                time.sleep(delay())
-                more.click()
             except:
                 if WEBDRIVER == 'Chrome':
                     # Chrome won't find the above if it isn't already visible.
@@ -264,6 +271,9 @@ def process_account(account):
                     # Using the exception here to catch end of entire page.
                     end_of_page = True
                     break
+            else:
+                time.sleep(delay())
+                more.click()
 
             # Statigram clicks usually go awry after traversing several fully
             # or mostly liked screens. Quitting while ahead.
@@ -285,7 +295,7 @@ def process_account(account):
 
         if not logout(driver, wait):
             return False
-        time.sleep(delay() * 100)
+        time.sleep(delay() * 1000)
 
     return True
 
@@ -377,7 +387,7 @@ def logout(driver, wait):
 
 def delay():
     """Generate random sleep time to make navigating and clicking more human."""
-    return random.uniform(0.75, 1.75)
+    return random.uniform(0.5, 2.0)
 
 
 def main():
