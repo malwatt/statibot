@@ -169,7 +169,6 @@ def process_account(account):
         print '  Hashtag "%s" %d...' % (hashtag, likes)
 
         # Safest to start a new session for each hashtag.
-        time.sleep(delay())
         try:
             driver, wait = login(account)
         except:
@@ -286,6 +285,7 @@ def process_account(account):
 
         if not logout(driver, wait):
             return False
+        time.sleep(delay() * 100)
 
     return True
 
