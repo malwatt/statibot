@@ -17,6 +17,9 @@ WEBDRIVER = 'Firefox'  # 'Firefox' 'Chrome' 'PhantomJS'
 ACCOUNTS_FILE = 'accounts.txt'
 MAX_LIKES = 200
 MAX_LIKED_SCREENS = 2
+SKIP = 2
+SECONDS_MIN = 0.5
+SECONDS_MAX = 2.0
 
 
 def get_webdriver():
@@ -201,17 +204,22 @@ def process_account(account):
         tag.click()
 
         # Set pause points at a random click count interval for this hashtag.
-        pause = random.randint(10, 25)
+        pause = random.randint(15, 25)
+        print '    Set to pause every %d clicks.' % pause
+
+        # Set pic click points at a random click count interval for this hashtag.
+        pic_click = random.randint(15, 25)
+        print '    Set to open a pic every %d clicks.' % pic_click
 
         # Like unliked pics for this hashtag, extending the screen as required.
         screen = 0
         screen_tries = 0
         clicks = 0
         count = 0
-        failed = 0
         end_of_page = False
         while count < likes and count < MAX_LIKES:
             screen += 1
+            failed = 0
 
             # Get unliked pics on screen.
             try:
@@ -219,10 +227,24 @@ def process_account(account):
                     By.XPATH, '//*[@class="photos-wrapper"]/div/a[@class="like_picto_unselected likeAction ss-heart"]'))
             except:
                 unlikeds = []
-            todo = len(unlikeds)
 
-            if unlikeds:
+            # Skip liking a certain number per screen.
+            todo = len(unlikeds) - SKIP * screen
+            print '    Screen %1 To Do %d.' % todo
+
+            if todo > 0:
                 screen_tries = 0
+
+                # Ignore skipped items of previous screens.
+                for i in xrange(SKIP * (screen - 1)):
+                    unlikeds.pop(0)
+                print '    Popped first %d unliked elements on total page.' % i
+                print '    Screen %d Total Unliked %d.' % len(unlikeds)
+
+                # Set random indices of pics to skip liking on this screen.
+                skips = random.sample(xrange(len(unlikeds)), SKIP)
+                print '    Set to skip indices %s.' % sorted(skips)
+
                 # Get liked pics on screen.
                 try:
                     likeds = wait.until(lambda s: s.find_elements(
@@ -231,23 +253,53 @@ def process_account(account):
                     likeds = []
                 already = len(likeds)
 
-                # Like the unliked pics on screen.
-                for unliked in unlikeds:
-                    time.sleep(delay() * 10)
-                    unliked.click()
+                # Like the unliked pics on screen, minus the ones to skip.
+                for i, unliked in enumerate(unlikeds):
+                    if i in skips:
+                        print '    Skipped index %d.' % i
+                        continue
+
                     clicks += 1
+                    print '    Click %d.' % clicks
+
+                    # Random pic click, then return and continue.
+                    # Is back button disrupting flow?
+                    #if not clicks % pic_click:
+                    #    print 'pic clicking'
+                    #    current = unliked
+                    #    pic = current.find_element_by_xpath(
+                    #        '../../div/a[@class="lienPhotoGrid"]')
+                    #    time.sleep(delay() * 10)
+                    #    pic.click()
+                    #    time.sleep(delay() * 10)
+                    #    driver.back()
 
                     # Random pause.
                     if not clicks % pause:
+                        print '    Click %d Pausing.' % clicks
                         time.sleep(delay() * 100)
 
+                    time.sleep(delay() * 10)
+                    unliked.click()
+
+                    # Check if liked ok by trying to find the unliked element.
+                    current = unliked
+                    time.sleep(delay())
+                    try:
+                        check = current.find_element_by_xpath(
+                            '../a[@class="like_picto_unselected likeAction ss-heart"]')
+                    except:
+                        pass
+                    else:
+                        failed += 1
+
                 # Get unliked pics now on screen.
-                try:
-                    unlikeds2 = wait.until(lambda s: s.find_elements(
-                        By.XPATH, '//*[@class="photos-wrapper"]/div/a[@class="like_picto_unselected likeAction ss-heart"]'))
-                except:
-                    unlikeds2 = []
-                failed = len(unlikeds2)
+                #try:
+                #    unlikeds2 = wait.until(lambda s: s.find_elements(
+                #        By.XPATH, '//*[@class="photos-wrapper"]/div/a[@class="like_picto_unselected likeAction ss-heart"]'))
+                #except:
+                #    unlikeds2 = []
+                #failed = len(unlikeds2) - SKIP * screen
 
                 done = todo - failed
                 count += done
@@ -387,7 +439,7 @@ def logout(driver, wait):
 
 def delay():
     """Generate random sleep time to make navigating and clicking more human."""
-    return random.uniform(0.5, 2.0)
+    return random.uniform(SECONDS_MIN, SECONDS_MAX)
 
 
 def main():
