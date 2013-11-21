@@ -230,7 +230,7 @@ def process_account(account):
 
             # Skip liking a certain number per screen.
             todo = len(unlikeds) - SKIP * screen
-            print '    Screen %1 To Do %d.' % todo
+            print '    Screen %00d To Do %d.' % (screen, todo)
 
             if todo > 0:
                 screen_tries = 0
@@ -238,8 +238,8 @@ def process_account(account):
                 # Ignore skipped items of previous screens.
                 for i in xrange(SKIP * (screen - 1)):
                     unlikeds.pop(0)
-                print '    Popped first %d unliked elements on total page.' % i
-                print '    Screen %d Total Unliked %d.' % len(unlikeds)
+                print '    Popped first %d unliked elements on total page.' % (SKIP * (screen - 1) + 1)
+                print '    Screen %00d Total Unliked %d.' % (screen, len(unlikeds))
 
                 # Set random indices of pics to skip liking on this screen.
                 skips = random.sample(xrange(len(unlikeds)), SKIP)
